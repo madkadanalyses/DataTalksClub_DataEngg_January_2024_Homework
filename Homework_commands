@@ -1,0 +1,102 @@
+#Question 1
+docker build --help
+docker run --help
+
+#Question 2
+docker run -it --entrypoint=bash python:3.9
+pip list
+
+#Question 3
+docker run -it \
+    -e POSTGRES_USER="root" \
+    -e POSTGRES_PASSWORD="root" \
+    -e POSTGRES_DB="ny_taxi_test" \
+    -v $(pwd)/ny_taxi_test_postgres_data:/var/lib/postgresql/data \
+    -p 5432:5432 \
+    --network pg-network \
+    --name pgdatabase-5 \
+    postgres:13
+
+docker run -it \
+    -e PGADMIN_DEFAULT_EMAIL="admin@admin.com" \
+    -e PGADMIN_DEFAULT_PASSWORD="root" \
+    -p 8080:80 \
+    --network=pg-network \
+    --name=pgadmin-5 \
+    dpage/pgadmin4
+
+#change pipeline and dockerfile, build docker image after each dockerfile change
+docker build -t taxi_injest:v003 .
+
+#example for creating lookupzone table in container connected to same network
+URL="https://s3.amazonaws.com/nyc-tlc/misc/taxi+_zone_lookup.csv"
+
+docker run -it \
+    --network=pg-network \
+    taxi_injest:v002 \
+        --user=root \
+        --password=root \
+        --host=pgdatabase-5 \
+        --port=5432 \
+        --db=ny_taxi_test \
+        --url=${URL} \
+        --table_name=lookup_zones_table
+
+#Count Records
+SELECT
+	CAST(lpep_dropoff_datetime AS Date) as "Day",
+	COUNT(1)
+FROM
+	green_taxi_201909 t
+WHERE
+	CAST(t.lpep_dropoff_datetime AS Date) = CAST(t.lpep_pickup_datetime AS Date)
+GROUP BY
+	CAST(lpep_dropoff_datetime AS Date)
+ORDER BY "Day" ASC;
+
+#Answer 4
+SELECT
+	CAST(lpep_pickup_datetime AS Date) as "Day",
+	MAX(trip_distance) as "Maximum Trip Distance"
+FROM
+	green_taxi_201909 t
+GROUP BY
+	CAST(lpep_pickup_datetime AS Date)
+ORDER BY MAX(trip_distance) DESC;
+
+#Answer 5
+SELECT
+	CAST(lpep_pickup_datetime AS Date) as "Day",
+	puz."Borough" as "Pickup",
+	doz."Borough" as "Dropoff",
+	SUM(total_amount) as "Sum_total_amount"
+FROM
+	green_taxi_201909 t JOIN lookup_zones_table puz
+		ON t."PULocationID" = puz."LocationID"
+	JOIN lookup_zones_table doz
+		ON t."DOLocationID" = doz."LocationID"
+WHERE
+	CAST(lpep_pickup_datetime AS Date) between '2019-09-18' and '2019-09-18'
+GROUP BY
+	1,2,3
+ORDER BY
+	4 DESC;
+
+#Answer 6
+SELECT
+	MAX(tip_amount) as "Max Tip Amount",
+	COUNT(1) as "Total Trips",
+	to_char(lpep_pickup_datetime, 'YYYY-MM') as "Month",
+	puz."Zone" as "Pickup",
+	doz."Zone" as "Dropoff"
+FROM
+	green_taxi_201909 t,
+	lookup_zones_table puz,
+	lookup_zones_table doz
+WHERE
+	t."PULocationID" = puz."LocationID" AND
+	t."DOLocationID" = doz."LocationID"
+GROUP BY
+	3,4,5
+ORDER BY MAX(tip_amount) DESC;
+
