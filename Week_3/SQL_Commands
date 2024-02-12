@@ -1,0 +1,27 @@
+# Question 1
+# Count rows of external table
+SELECT COUNT(*) FROM `magic.external_green_tripdata_2022`;
+# Count rows of materialized table
+SELECT COUNT(*) FROM `magic.green_tripdata_2022_non_partitioned`;
+
+# Question 2
+# Get Distinct PULocationID counts from external (check scan size)
+SELECT COUNT(DISTINCT(PULocationID)) FROM `magic.external_green_tripdata_2022`;
+# Get Distinct PULocationID counts from materialized(check scan size)
+SELECT COUNT(DISTINCT(PULocationID)) FROM `magic.green_tripdata_2022_non_partitioned`;
+
+# Question 3
+# get fare amount zero count for taxi trips from materialised
+SELECT COUNT(*) FROM `magic.green_tripdata_2022_non_partitioned` WHERE fare_amount = 0;
+
+# Question 4
+# Partition and cluster
+CREATE OR REPLACE TABLE `de-zoomcamp-2024-410417.magic.green_tripdata_2022_partitoned_clustered`
+PARTITION BY TIMESTAMP_TRUNC(lpep_pickup_datetime, DAY)
+CLUSTER BY PULocationID  AS
+SELECT * FROM `de-zoomcamp-2024-410417.magic.external_green_tripdata_2022`;
+
+# Question 5
+# check for scan savings before and after partition and cluster
+SELECT COUNT(DISTINCT(PULocationID)) FROM `magic.green_tripdata_2022_non_partitioned` WHERE CAST(lpep_pickup_datetime AS Date) between '2022-06-01' and '2022-06-30';
+SELECT COUNT(DISTINCT(PULocationID)) FROM `magic.green_tripdata_2022_partitoned_clustered` WHERE CAST(lpep_pickup_datetime AS Date) between '2022-06-01' and '2022-06-30';
